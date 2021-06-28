@@ -39,7 +39,7 @@ def example():
     draw_matching_squares(ref_image, flo_image, [60, 20], [30, 30], colors, 1)
     draw_matching_squares(ref_image, flo_image, [30, 100], [20, 20], colors, 2)
     draw_matching_squares(ref_image, flo_image, [200, 250], [40, 40], colors, 3)
-    draw_matching_squares(ref_image, flo_image, [200, 250], [40, 40], colors, 4)
+    draw_matching_squares(ref_image, flo_image, [250, 200], [40, 40], colors, 4)
     draw_matching_squares(ref_image, flo_image, [400, 150], [70, 40], colors, 5)
 
     draw_matching_squares(ref_image, flo_image, [400, 20], [30, 30], colors, 0)
