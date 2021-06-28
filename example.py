@@ -50,6 +50,7 @@ def example():
     draw_matching_squares(ref_image, flo_image, [480, 277], [20, 40], colors, 5)
 
     flo_image_rot = np.rot90(flo_image, 1, (0, 1))
+    flo_image_rot = np.roll(flo_image_rot, shift=(17, -12), axis=(0, 1))
 
     io.imsave('example_ref_image.png', img_as_ubyte(ref_image))
     io.imsave('example_flo_image.png', img_as_ubyte(flo_image))
