@@ -128,10 +128,11 @@ def tf_rotate(I, angle, fill_value, center=None):
 ### normalize_mi: Flag to choose between normalized mutual information (NMI) or
 ###    standard unnormalized mutual information.
 ### cpu_n: Place some of the levels of image A on the CPU, to reduce the GPU memory footprint
-###    slightly.
-### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation, x of center of rotation).
+###    slightly at the expense of an increase in run-time.
+### save_maps: Flag for exporting the stack of CMIF maps over the angles, e.g. for debugging or visualization.
+### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation, x of center of rotation), maps/None.
 ###
-def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_overlap=True, normalize_mi=True, cpu_n=0, save_maps=False):
+def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, cpu_n=0, save_maps=False):
     VALUE_TYPE = torch.float32
     eps=1e-7
 
@@ -244,10 +245,9 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
         N = eps + corr_apply(M_A_FFT, M_B_FFT, ext_valid_shape)
 
         b_ffts = fft_of_levelsets(B_tensor_rotated, Q_B, packing, corr_template_setup)
-        #for b in range(Q_B):
+
         for bext in range(len(b_ffts)):
             b_fft = b_ffts[bext]
-            #b_fft = corr_template_setup(float_compare(B_tensor_rotated, b))
             E_M = torch.sum(compute_entropy(corr_apply(M_A_FFT, b_fft[0], batched_valid_shape), N, eps), dim=0)
             if normalize_mi:
                 H_MARG = torch.sub(H_MARG, E_M)
@@ -275,7 +275,6 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
                     MI = torch.add(MI, E_J)
                 del E_J
                 del A_fft_cuda
-            #del b_ffts[bext]
             del b_fft
             if bext == 0:
                 del M_B_FFT
@@ -284,7 +283,6 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
 
         if normalize_mi:
             MI = torch.clamp((H_MARG / (H_AB + eps) - 1), 0.0, 1.0)
-            #MI = (H_MARG - H_AB)
             
         if save_maps:
             maps.append(MI.cpu().numpy())
@@ -327,7 +325,35 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
     else:
         return cpu_results, None
 
-def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refinement_param, overlap=0.5, enable_partial_overlap=True, normalize_mi=True, cpu_n=0, save_maps=False):
+###
+### align_rigid
+###
+### Performs rigid alignment of multimodal images using exhaustive search mutual information (MI),
+### locating the global maximum of the MI measure w.r.t. all possible whole-pixel translations as well
+### as a set of enumerated rotations. Runs on the GPU, using PyTorch.
+###
+### Parameters:
+### A: (reference 2d image).
+### B: (floating 2d image).
+### M_A: (reference 2d mask image).
+### M_B: (floating 2d mask image).
+### Q_A: (number of quantization levels in image A).
+### Q_B: (number of quantization levels in image B).
+### angles_n: Number of angles to consider in the grid search.
+### max_angle: The largest angle to include in the grid search. (180 => global search)
+### refinement_param: dictionary with settings for the refinement steps e.g. {'n': 32, 'max_angle': 3.0}
+### overlap: The required overlap fraction (of the maximum overlap possible, given masks).
+### enable_partial_overlap: If False then no padding will be done, and only fully overlapping
+###    configurations will be evaluated. If True, then padding will be done to include
+###    configurations where only part of image B is overlapping image A.
+### normalize_mi: Flag to choose between normalized mutual information (NMI) or
+###    standard unnormalized mutual information.
+### cpu_n: Place some of the levels of image A on the CPU, to reduce the GPU memory footprint
+###    slightly at the expense of an increase in run-time.
+### save_maps: Flag for exporting the stack of CMIF maps over the angles, e.g. for debugging or visualization.
+### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation, x of center of rotation), maps/None.
+###
+def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refinement_param={'n': 32}, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, cpu_n=0, save_maps=False):
     angles1 = grid_angles(0, max_angle, n=angles_n)
     param, maps1 = align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles1, overlap, enable_partial_overlap, normalize_mi, cpu_n, save_maps=save_maps)
     # extract rotations and probabilities for refinement
