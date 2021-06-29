@@ -1,5 +1,5 @@
 # globalign
-A library for fast global mutual inforrmation-based rigid alignment using the GPU.
+A library for fast global mutual information-based rigid alignment using the GPU.
 
 Requirements:
 Python3.8.8, PyTorch 1.8.1, numpy, scipy, sklearn<br>
