@@ -326,7 +326,7 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
         return cpu_results, None
 
 ###
-### align_rigid
+### align_rigid_and_refine
 ###
 ### Performs rigid alignment of multimodal images using exhaustive search mutual information (MI),
 ### locating the global maximum of the MI measure w.r.t. all possible whole-pixel translations as well
@@ -374,6 +374,16 @@ def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refine
     else:
         return np.array(param[0]), (maps1,)
 
+###
+### warp_image_rigid
+###
+### Applies the transformation obtained by the functions align_rigid/align_rigid_and_refine
+### to warp a floating image into the space of the ref_image (using backward mapping).
+### param: The parameters (first value of the returned tuple from align_rigid/align_rigid_and_refine)
+### mode (interpolation): nearest/linear/spline
+### bg_value: The value to insert where there is no information in the flo_image
+### inv: Invert the transformation, used e.g. when warping the original reference image into
+###      the space of the original floating image.
 def warp_image_rigid(ref_image, flo_image, param, mode='nearest', bg_value=0.0, inv=False):
     r = transformations.Rotate2DTransform()
     r.set_param(0, np.pi*param[1]/180.0)
@@ -400,6 +410,14 @@ def warp_image_rigid(ref_image, flo_image, param, mode='nearest', bg_value=0.0, 
 
     return flo_image_out
 
+###
+### warp_points_rigid
+###
+### Applies the transformation obtained by the functions align_rigid/align_rigid_and_refine
+### to transform a set of points in the reference image space into the floating image space.
+### param: The parameters (first value of the returned tuple from align_rigid/align_rigid_and_refine)
+### inv: Invert the transformation, used e.g. when transforming points from the original floating image
+###      space into the original reference image space.
 def warp_points_rigid(points, param, inv=False):
     r = transformations.Rotate2DTransform()
     r.set_param(0, np.pi*param[1]/180.0)
