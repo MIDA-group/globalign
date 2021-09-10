@@ -5,8 +5,10 @@ import skimage
 from skimage.util import img_as_ubyte
 import skimage.io as io
 
-import globalalign
+import globalign
 import nd2cat
+
+import time
 
 def draw_matching_squares(im1, im2, pos, sz, color_table, c1):
     for c in range(color_table[0].shape[0]):
@@ -56,7 +58,7 @@ def example():
     io.imsave('example_flo_image.png', img_as_ubyte(flo_image))
     io.imsave('example_flo_image_rot.png', img_as_ubyte(flo_image_rot))
 
-    # quantize
+    # quantize (k=8)
 
     Q_A = 8
     Q_B = 8
@@ -71,11 +73,23 @@ def example():
     
     # align
 
-    param = globalalign.align_rigid_and_refine(quantized_ref_image, quantized_flo_image_rot, M_ref, M_flo, Q_A, Q_B, grid_angles, 180.0, refinement_param=refinement_param, overlap=overlap, enable_partial_overlap=True, normalize_mi=False, cpu_n=0, save_maps=False)
+    # enable GPU processing (requires CUDA)
+    on_gpu = True
+
+    t1 = time.time()
+
+    param = globalign.align_rigid_and_refine(quantized_ref_image, quantized_flo_image_rot, M_ref, M_flo, Q_A, Q_B, grid_angles, 180.0, refinement_param=refinement_param, overlap=overlap, enable_partial_overlap=True, normalize_mi=False, on_gpu=on_gpu, save_maps=False)
+
+    t2 = time.time()
+    print('Time elapsed: ', t2-t1)
+    print('Mutual information: ', param[0][0])
+    print('Rotation angle: ', param[0][1])
+    print('Translation: ', param[0][2:4])
+    print('Center of rotation: ', param[0][4:6])
 
     # apply parameters to the floating image
 
-    flo_image_recovered = globalalign.warp_image_rigid(ref_image, flo_image_rot, param[0], mode='nearest', bg_value=[1.0, 1.0, 1.0])
+    flo_image_recovered = globalign.warp_image_rigid(ref_image, flo_image_rot, param[0], mode='nearest', bg_value=[1.0, 1.0, 1.0])
 
     io.imsave('example_flo_image_recovered.png', img_as_ubyte(flo_image_recovered))
 

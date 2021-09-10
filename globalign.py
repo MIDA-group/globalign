@@ -11,6 +11,8 @@ import torch.fft
 import torchvision.transforms.functional as TF
 import transformations
 
+VALUE_TYPE = torch.float32
+
 # Creates a list of random angles
 def grid_angles(center, radius, n = 32):
     angles = []
@@ -104,6 +106,31 @@ def corr_apply(A, B, sz, do_rounding = True):
 def tf_rotate(I, angle, fill_value, center=None):
     return TF.rotate(I, -angle, center=center, fill=[fill_value, ])
 
+def create_float_tensor(shape, on_gpu, fill_value=None):
+    if on_gpu:
+        res = torch.cuda.FloatTensor(shape[0], shape[1], shape[2], shape[3])
+        if fill_value is not None:
+            res.fill_(fill_value)
+        return res
+    else:
+        if fill_value is not None:
+            res = np.full((shape[0], shape[1], shape[2], shape[3]), fill_value=fill_value, dtype='float32')
+        else:
+            res = np.zeros((shape[0], shape[1], shape[2], shape[3]), dtype='float32')
+        return torch.tensor(res, dtype=torch.float32)
+
+def to_tensor(A, on_gpu=True):
+    if torch.is_tensor(A):
+        A_tensor = A.cuda(non_blocking=True) if on_gpu else A
+        if A_tensor.ndim == 2:
+            A_tensor = torch.reshape(A_tensor, (1, 1, A_tensor.shape[0], A_tensor.shape[1]))
+        elif A_tensor.ndim == 3:
+            A_tensor = torch.reshape(A_tensor, (1, A_tensor.shape[0], A_tensor.shape[1], A_tensor.shape[2]))
+        return A_tensor
+    else:
+        return to_tensor(torch.tensor(A, dtype=VALUE_TYPE), on_gpu=on_gpu)
+
+
 ### End helper functions
 
 ###
@@ -127,42 +154,18 @@ def tf_rotate(I, angle, fill_value, center=None):
 ###    configurations where only part of image B is overlapping image A.
 ### normalize_mi: Flag to choose between normalized mutual information (NMI) or
 ###    standard unnormalized mutual information.
-### cpu_n: Place some of the levels of image A on the CPU, to reduce the GPU memory footprint
-###    slightly at the expense of an increase in run-time.
+### on_gpu: Flag controlling if the alignment is done on the GPU.
 ### save_maps: Flag for exporting the stack of CMIF maps over the angles, e.g. for debugging or visualization.
 ### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation, x of center of rotation), maps/None.
 ###
-def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, cpu_n=0, save_maps=False):
-    VALUE_TYPE = torch.float32
+def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, on_gpu=True, save_maps=False):
     eps=1e-7
 
     results = []
     maps = []
 
-    if torch.is_tensor(A):
-        A_tensor = A.cuda(non_blocking=True)
-        if A_tensor.ndim == 2:
-            A_tensor = torch.reshape(A_tensor, (1, 1, A_tensor.shape[0], A_tensor.shape[1]))
-        elif A_tensor.ndim == 3:
-            A_tensor = torch.reshape(A_tensor, (1, A_tensor.shape[0], A_tensor.shape[1], A_tensor.shape[2]))
-    else:
-        A_tensor = torch.tensor(A, dtype=VALUE_TYPE).cuda(non_blocking=True)
-        if A_tensor.ndim == 2:
-            A_tensor = torch.reshape(A_tensor, (1, 1, A_tensor.shape[0], A_tensor.shape[1]))
-        elif A_tensor.ndim == 3:
-            A_tensor = torch.reshape(A_tensor, (1, A_tensor.shape[0], A_tensor.shape[1], A_tensor.shape[2]))
-    if torch.is_tensor(B):
-        B_tensor = B.cuda(non_blocking=True)
-        if B_tensor.ndim == 2:
-            B_tensor = torch.reshape(B_tensor, (1, 1, B_tensor.shape[0], B_tensor.shape[1]))
-        elif B_tensor.ndim == 3:
-            B_tensor = torch.reshape(B_tensor, (1, B_tensor.shape[0], B_tensor.shape[1], B_tensor.shape[2]))
-    else:
-        B_tensor = torch.tensor(B, dtype=VALUE_TYPE).cuda(non_blocking=True)
-        if B_tensor.ndim == 2:
-            B_tensor = torch.reshape(B_tensor, (1, 1, B_tensor.shape[0], B_tensor.shape[1]))
-        elif B_tensor.ndim == 3:
-            B_tensor = torch.reshape(B_tensor, (1, B_tensor.shape[0], B_tensor.shape[1], B_tensor.shape[2]))
+    A_tensor = to_tensor(A, on_gpu=on_gpu)
+    B_tensor = to_tensor(B, on_gpu=on_gpu)
 
     if A_tensor.shape[-1] < 1024:
         packing = np.minimum(Q_B, 64)
@@ -175,22 +178,14 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
 
     # Create all constant masks if not provided
     if M_A is None:
-        M_A = torch.cuda.FloatTensor(A_tensor.shape[0], A_tensor.shape[1], A_tensor.shape[2], A_tensor.shape[3]).fill_(1.0)
+        M_A = create_float_tensor(A_tensor.shape, on_gpu, 1.0)
     else:
-        M_A = torch.tensor(M_A, dtype=VALUE_TYPE).cuda(non_blocking=True)
-        if M_A.ndim == 2:
-            M_A = torch.reshape(M_A, (1, 1, M_A.shape[0], M_A.shape[1]))
-        elif M_A.ndim == 3:
-            M_A = torch.reshape(M_A, (1, M_A.shape[0], M_A.shape[1], M_A.shape[2]))
+        M_A = to_tensor(M_A, on_gpu)
         A_tensor = torch.round(M_A * A_tensor + (1-M_A) * (Q_A+1))
     if M_B is None:
-        M_B = torch.cuda.FloatTensor(B_tensor.shape[0], B_tensor.shape[1], B_tensor.shape[2], B_tensor.shape[3]).fill_(1.0)
+        M_B = create_float_tensor(B_tensor.shape, on_gpu, 1.0)
     else:
-        M_B = torch.tensor(M_B, dtype=VALUE_TYPE).cuda(non_blocking=True)
-        if M_B.ndim == 2:
-            M_B = torch.reshape(M_B, (1, 1, M_B.shape[0], M_B.shape[1]))
-        elif M_B.ndim == 3:
-            M_B = torch.reshape(M_B, (1, M_B.shape[0], M_B.shape[1], M_B.shape[2]))
+        M_B = to_tensor(M_B, on_gpu)
         
     # Pad for overlap
     if enable_partial_overlap:
@@ -217,17 +212,15 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
     A_ffts = []
     for a in range(Q_A):
         A_ffts.append(corr_target_setup(float_compare(A_tensor, a)))
-        if a < cpu_n:
-            A_ffts[-1] = A_ffts[-1].cpu()    
 
     del A_tensor
     del M_A
 
     if normalize_mi:
-        H_MARG = torch.cuda.FloatTensor(ext_valid_shape[0], ext_valid_shape[1], ext_valid_shape[2], ext_valid_shape[3]).fill_(0)
-        H_AB = torch.cuda.FloatTensor(ext_valid_shape[0], ext_valid_shape[1], ext_valid_shape[2], ext_valid_shape[3]).fill_(0)
+        H_MARG = create_float_tensor(ext_valid_shape, on_gpu, 0.0)
+        H_AB = create_float_tensor(ext_valid_shape, on_gpu, 0.0)
     else:
-        MI = torch.cuda.FloatTensor(ext_valid_shape[0], ext_valid_shape[1], ext_valid_shape[2], ext_valid_shape[3]).fill_(0)
+        MI = create_float_tensor(ext_valid_shape, on_gpu, 0.0)
 
     for ang in angles:
 
@@ -256,10 +249,7 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
             del E_M
 
             for a in range(Q_A):
-                if a < cpu_n:
-                    A_fft_cuda = A_ffts[a].cuda(non_blocking=True)
-                else:
-                    A_fft_cuda = A_ffts[a]
+                A_fft_cuda = A_ffts[a]
                     
                 if bext == 0:
                     E_M = compute_entropy(corr_apply(A_fft_cuda, M_B_FFT, ext_valid_shape), N, eps)
@@ -348,14 +338,13 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
 ###    configurations where only part of image B is overlapping image A.
 ### normalize_mi: Flag to choose between normalized mutual information (NMI) or
 ###    standard unnormalized mutual information.
-### cpu_n: Place some of the levels of image A on the CPU, to reduce the GPU memory footprint
-###    slightly at the expense of an increase in run-time.
+### on_gpu: Flag controlling if the alignment is done on the GPU.
 ### save_maps: Flag for exporting the stack of CMIF maps over the angles, e.g. for debugging or visualization.
 ### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation, x of center of rotation), maps/None.
 ###
-def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refinement_param={'n': 32}, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, cpu_n=0, save_maps=False):
+def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refinement_param={'n': 32}, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, on_gpu=True, save_maps=False):
     angles1 = grid_angles(0, max_angle, n=angles_n)
-    param, maps1 = align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles1, overlap, enable_partial_overlap, normalize_mi, cpu_n, save_maps=save_maps)
+    param, maps1 = align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles1, overlap, enable_partial_overlap, normalize_mi, on_gpu, save_maps=save_maps)
     # extract rotations and probabilities for refinement
     centers = []
     center_probs = []
@@ -367,7 +356,7 @@ def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refine
     rot = param[1]
     if refinement_param.get('n', 0) > 0:
         angles2 = random_angles(centers, center_probs, refinement_param.get('max_angle', 3.0), n = refinement_param.get('n'))
-        param2, maps2 = align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles2, overlap, enable_partial_overlap, normalize_mi, cpu_n, save_maps=save_maps)
+        param2, maps2 = align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles2, overlap, enable_partial_overlap, normalize_mi, on_gpu, save_maps=save_maps)
         param = param + param2
         param = sorted(param, key=(lambda tup: tup[0]), reverse=True)
         return np.array(param[0]), (maps1, maps2)
