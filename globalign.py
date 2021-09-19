@@ -52,7 +52,7 @@ def random_angles(centers, center_prob, radius, n = 32):
 
 def compute_entropy(C, N, eps=1e-7):
     p = C/N
-    return p*torch.log2(p + eps)
+    return p*torch.log2(torch.clamp(p, min=eps, max=None))
 
 def float_compare(A, c):
     return torch.clamp(1-torch.abs(A-c), 0.0)
@@ -205,7 +205,7 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
     valid_shape = ext_valid_shape[2:]
 
     # use default center of rotation (which is the center point)
-    center_of_rotation = [B_tensor.shape[2] / 2.0, B_tensor.shape[3] / 2.0]
+    center_of_rotation = [B_tensor.shape[3] / 2.0, B_tensor.shape[2] / 2.0]
 
     M_A_FFT = corr_target_setup(M_A)
 
@@ -235,7 +235,7 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
         M_B_FFT = corr_template_setup(M_B_rotated)
         del M_B_rotated
 
-        N = eps + corr_apply(M_A_FFT, M_B_FFT, ext_valid_shape)
+        N = torch.clamp(corr_apply(M_A_FFT, M_B_FFT, ext_valid_shape), min=eps, max=None)
 
         b_ffts = fft_of_levelsets(B_tensor_rotated, Q_B, packing, corr_template_setup)
 
@@ -278,8 +278,8 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
             maps.append(MI.cpu().numpy())
 
         (max_n, _) = torch.max(torch.reshape(N, (-1,)), 0)
-        N_filt = torch.gt(N, overlap*max_n).float()
-        MI = MI * N_filt
+        N_filt = torch.lt(N, overlap*max_n)
+        MI[N_filt] = 0.0
         del N_filt, N
 
         MI_vec = torch.reshape(MI, (-1,))
@@ -303,7 +303,7 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
         sz_x = int(ext_valid_shape[3].numpy())
         y = maxind // sz_x
         x = maxind % sz_x
-        cpu_results.append((maxval, ang, -(y - partial_overlap_pad_sz[1]), -(x - partial_overlap_pad_sz[0]), center_of_rotation[0], center_of_rotation[1]))
+        cpu_results.append((maxval, ang, -(y - partial_overlap_pad_sz[1]), -(x - partial_overlap_pad_sz[0]), center_of_rotation[1], center_of_rotation[0]))
     cpu_results = sorted(cpu_results, key=(lambda tup: tup[0]), reverse=True)
     for i in range(len(cpu_results)):
         res = cpu_results[i]
