@@ -88,6 +88,22 @@ def image2cat_kmeans(I, k, batch_size=100, max_iter=1000, random_seed=1000):
 
     return I_res.reshape(spatial_shape)
 
+def image2cat_kmeans_masked(I, M, k, batch_size=100, max_iter=1000, random_seed=1000):
+    total_shape = I.shape
+    spatial_shape = total_shape[:-1]
+    channels = total_shape[-1]
+    I_lin = I.reshape(-1, channels)
+    M_lin = M.reshape((M.size,))
+    I_lin_masked = I_lin[M_lin, :]
+    kmeans = MiniBatchKMeans(n_clusters=k, max_iter = max_iter, batch_size = batch_size, random_state=random_seed).fit(I_lin_masked)
+    centers = kmeans.cluster_centers_
+    I_res = kmeans.predict(I_lin)
+                
+    labs = relabel_clusters(centers)
+    I_res = labs[I_res]
+
+    return I_res.reshape(spatial_shape)
+
 def image2cat_pca(I, k, sigmas=None):
     total_shape = I.shape
     spatial_shape = total_shape[:-1]
