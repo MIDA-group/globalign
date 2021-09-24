@@ -89,6 +89,8 @@ def image2cat_kmeans(I, k, batch_size=100, max_iter=1000, random_seed=1000):
     return I_res.reshape(spatial_shape)
 
 def image2cat_kmeans_masked(I, M, k, batch_size=100, max_iter=1000, random_seed=1000):
+    if M is None:
+        return image2cat_kmeans(I, k, batch_size, max_iter, random_seed)
     total_shape = I.shape
     spatial_shape = total_shape[:-1]
     channels = total_shape[-1]
