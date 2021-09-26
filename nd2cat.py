@@ -77,6 +77,8 @@ def image2cat_kmeans(I, k, batch_size=100, max_iter=1000, random_seed=1000):
     total_shape = I.shape
     spatial_shape = total_shape[:-1]
     channels = total_shape[-1]
+    if k == 1:
+        return np.zeros(spatial_shape, dtype='int')
     I_lin = I.reshape(-1, channels)
     kmeans = MiniBatchKMeans(n_clusters=k, max_iter = max_iter, batch_size = batch_size, random_state=random_seed).fit(I_lin)
     centers = kmeans.cluster_centers_
@@ -94,6 +96,8 @@ def image2cat_kmeans_masked(I, M, k, batch_size=100, max_iter=1000, random_seed=
     total_shape = I.shape
     spatial_shape = total_shape[:-1]
     channels = total_shape[-1]
+    if k == 1:
+        return np.zeros(spatial_shape, dtype='int')
     I_lin = I.reshape(-1, channels)
     M_lin = M.reshape((M.size,))
     I_lin_masked = I_lin[M_lin, :]
