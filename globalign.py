@@ -115,7 +115,7 @@ def tf_rotate(I, angle, fill_value, center=None):
 
 def create_float_tensor(shape, on_gpu, fill_value=None):
     if on_gpu:
-        res = torch.cuda.FloatTensor(shape[0], shape[1], shape[2], shape[3])
+        res = torch.empty((shape[0], shape[1], shape[2], shape[3]), device='cuda', dtype=torch.float32)
         if fill_value is not None:
             res.fill_(fill_value)
         return res
@@ -304,7 +304,8 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
             MI.fill_(0)
 
 
-    print('-------------------------------------------')
+    print('------------------------------')
+    print(' [MI]   [angle]  [dx] [dy] ')
     cpu_results = []
     for i in range(len(results)):
         ang = results[i][0]
@@ -317,8 +318,8 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
     cpu_results = sorted(cpu_results, key=(lambda tup: tup[0]), reverse=True)
     for i in range(len(cpu_results)):
         res = cpu_results[i]
-        print(float(res[0]), res[1], res[2], res[3])
-    print('-------------------------------------------')
+        print('%.4f %8.3f %4d %4d' %(float(res[0]), res[1], res[2], res[3]))
+    print('------------------------------')
     # Return the maximum found
     if save_maps:
         return cpu_results, maps
