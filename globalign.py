@@ -109,6 +109,8 @@ def corr_apply(A, B, sz, do_rounding = True):
     return C
 
 def tf_rotate(I, angle, fill_value, center=None):
+    if center is not None:
+        center = [x+0.5 for x in center] # Half a pixel offset, since TF.rotate origin is in upper left corner
     return TF.rotate(I, -angle, center=center, fill=[fill_value, ])
 
 def create_float_tensor(shape, on_gpu, fill_value=None):
@@ -161,7 +163,10 @@ def to_tensor(A, on_gpu=True):
 ###    standard unnormalized mutual information.
 ### on_gpu: Flag controlling if the alignment is done on the GPU.
 ### save_maps: Flag for exporting the stack of CMIF maps over the angles, e.g. for debugging or visualization.
-### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation, x of center of rotation), maps/None.
+### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation (origin at center of top left pixel), x of center of rotation), maps/None.
+###
+###  Note: Prior to v1.0.2, the returned center of rotation used Torchvisions convention 'Origin is the upper left corner' which
+###   is incompatible with the followed use of 'scipy.ndimage.interpolation.map_coordinates' that assumes integer coordinate-centered pixels.
 ###
 def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, on_gpu=True, save_maps=False):
     eps=1e-7
@@ -210,7 +215,7 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
     valid_shape = ext_valid_shape[2:]
 
     # use default center of rotation (which is the center point)
-    center_of_rotation = [B_tensor.shape[3] / 2.0, B_tensor.shape[2] / 2.0]
+    center_of_rotation = transformations.image_center_point(B)
 
     M_A_FFT = corr_target_setup(M_A)
 
