@@ -5,14 +5,9 @@
 #
 
 import numpy as np
-import pandas as pd
-import scipy.ndimage
-import skimage
 import skimage.color
-import skimage.io as io
-import skimage.transform as transform
-from scipy.ndimage.filters import maximum_filter
-from sklearn.cluster import KMeans
+
+#from sklearn.cluster import KMeans
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.cluster import MeanShift
 from sklearn.cluster import AgglomerativeClustering
