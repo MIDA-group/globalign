@@ -28,7 +28,12 @@ def grid_angles(center, radius, n = 32):
 
     return angles
 
-def random_angles(centers, center_prob, radius, n = 32):
+# Supply a Random number generator (e.g. 'rng = np.random.default_rng(12345)') for reproducible results
+# Default: 'rng=None' -> np.random.default_rng()
+def random_angles(centers, center_prob, radius, n = 32, rng = None):
+    if rng is None: 
+        rng = np.random.default_rng()
+
     angles = []
 
     if not isinstance(centers, list):
@@ -40,8 +45,8 @@ def random_angles(centers, center_prob, radius, n = 32):
         p = None
 
     for i in range(n):
-        c = np.random.choice(centers, p=p, replace=True)
-        frac = np.random.random()
+        c = rng.choice(centers, p=p, replace=True)
+        frac = rng.random()
         ang = c + (2.0 * frac - 1.0) * radius
 
         angles.append(ang)
@@ -340,9 +345,10 @@ def align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles, overlap=0.5, enable_partial_ov
 ###    standard unnormalized mutual information.
 ### on_gpu: Flag controlling if the alignment is done on the GPU.
 ### save_maps: Flag for exporting the stack of CMIF maps over the angles, e.g. for debugging or visualization.
+### rng: Optional random number generator (e.g. 'rng = np.random.default_rng(12345)') for reproducible results; default: None -> np.random.default_rng()
 ### Returns: np.array with 6 values (mutual_information, angle, y, x, y of center of rotation, x of center of rotation), maps/None.
 ###
-def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refinement_param={'n': 32}, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, on_gpu=True, save_maps=False):
+def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refinement_param={'n': 32}, overlap=0.5, enable_partial_overlap=True, normalize_mi=False, on_gpu=True, save_maps=False, rng=None):
     angles1 = grid_angles(0, max_angle, n=angles_n)
     param, maps1 = align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles1, overlap, enable_partial_overlap, normalize_mi, on_gpu, save_maps=save_maps)
     # extract rotations and probabilities for refinement
@@ -355,7 +361,7 @@ def align_rigid_and_refine(A, B, M_A, M_B, Q_A, Q_B, angles_n, max_angle, refine
     # param[0] now the current optimimum
     rot = param[1]
     if refinement_param.get('n', 0) > 0:
-        angles2 = random_angles(centers, center_probs, refinement_param.get('max_angle', 3.0), n = refinement_param.get('n'))
+        angles2 = random_angles(centers, center_probs, refinement_param.get('max_angle', 3.0), n = refinement_param.get('n'), rng = rng)
         param2, maps2 = align_rigid(A, B, M_A, M_B, Q_A, Q_B, angles2, overlap, enable_partial_overlap, normalize_mi, on_gpu, save_maps=save_maps)
         param = param + param2
         param = sorted(param, key=(lambda tup: tup[0]), reverse=True)
