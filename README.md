@@ -24,6 +24,7 @@ python -m venv ./venv
 pip install -r requirements.txt -r Learn2Reg/requirements.txt
 
 #Download the Dataset for *TASK 3: COMULISglobe SHG-BF*
+# https://learn2reg.grand-challenge.org/learn2reg-2024/#task-3-comulisglobe-shg-bf
 unzip COMULISSHGBF.zip
 
 #Run globalign/CMIF registration using a rather coarse (fast) search
