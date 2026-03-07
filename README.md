@@ -28,7 +28,7 @@ pip install -r requirements.txt -r Learn2Reg/requirements.txt
 unzip COMULISSHGBF.zip
 
 #Run globalign/CMIF registration using a rather coarse (fast) search
-python Learn2Reg/COMULISSHGBF_2024.py
+python -m Learn2Reg.COMULISSHGBF_2024
 ```
 
 Validation displacement fields are saved to the directory `output`
