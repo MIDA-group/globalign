@@ -17,7 +17,7 @@ Johan Öfverstedt
 
 
 
-## Learn2Reg 2024 - reference sollution for the COMULISSHGBF challenge
+## Learn2Reg 2024 - reference solution for the COMULISSHGBF challenge
 ```
 python -m venv ./venv
 . ./venv/bin/activate
